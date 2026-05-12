@@ -9,6 +9,7 @@ import subprocess
 import requests
 import shutil
 from pathlib import Path
+from gtts import gTTS
 
 OUTPUT_DIR = Path("output")
 
@@ -93,6 +94,8 @@ def ensure_dirs():
         "logs",
         "packages",
         "temp",
+        "audio",
+        "music",
     ]:
         (OUTPUT_DIR / folder).mkdir(
             parents=True,
@@ -319,6 +322,36 @@ def write_caption_file(index, scene):
 
     return path
 
+def generate_narration(scene, output_path):
+    try:
+        tts = gTTS(
+            text=scene["text"],
+            lang="en",
+            slow=False
+        )
+
+        tts.save(output_path)
+
+        return True
+
+    except Exception:
+        return False
+
+def get_music_track(scene):
+    emotion = scene.get("emotion", "mystery")
+
+    tracks = {
+        "fear": "dark_ambient.mp3",
+        "curiosity": "mystery_pulse.mp3",
+        "shock": "cinematic_hit.mp3",
+        "mystery": "dark_texture.mp3",
+    }
+
+    return tracks.get(
+        emotion,
+        "dark_texture.mp3"
+    )
+
 def download_stock_video(
     query,
     output_path
@@ -422,6 +455,17 @@ def render_scene(
         background_video
     )
 
+    audio_path = (
+        OUTPUT_DIR
+        / "audio"
+        / f"scene_{video_index}_{scene['scene']}.mp3"
+    )
+
+    has_audio = generate_narration(
+        scene,
+        audio_path
+    )
+
     font_size = (
         "84"
         if scene.get("emphasis")
@@ -439,7 +483,6 @@ def render_scene(
         "-y",
 
         *(
-
             [
                 "-stream_loop",
                 "-1",
@@ -461,7 +504,16 @@ def render_scene(
                     f"d={scene['duration']}"
                 ),
             ]
+        ),
 
+        *(
+            [
+                "-i",
+                str(audio_path)
+            ]
+            if has_audio
+            else
+            []
         ),
 
         "-vf",
@@ -474,7 +526,7 @@ def render_scene(
 
             "drawbox="
             "x=0:y=0:w=1080:h=1920:"
-            "color=black@0.25:t=fill,"
+            "color=black@0.35:t=fill,"
 
             f"drawtext="
             f"textfile='{caption_file}':"
@@ -491,6 +543,17 @@ def render_scene(
 
         "-t",
         str(scene["duration"]),
+
+        *(
+            [
+                "-c:a",
+                "aac",
+                "-shortest"
+            ]
+            if has_audio
+            else
+            []
+        ),
 
         "-c:v",
         "libx264",
