@@ -34,28 +34,12 @@ HOOK_TEMPLATES = [
     "This changed everything.",
 ]
 
-RETENTION_LINES = [
-    "But here’s where it gets strange.",
-    "And that is not even the weirdest part.",
-    "Then something happened that nobody expected.",
-    "The ending is what makes this so disturbing.",
-    "This is why people still talk about it today.",
-]
-
 def ensure_dirs():
     os.makedirs(f"{OUTPUT_DIR}/scripts", exist_ok=True)
     os.makedirs(f"{OUTPUT_DIR}/metadata", exist_ok=True)
     os.makedirs(f"{OUTPUT_DIR}/trends", exist_ok=True)
     os.makedirs(f"{OUTPUT_DIR}/premium", exist_ok=True)
     os.makedirs(f"{OUTPUT_DIR}/videos", exist_ok=True)
-
-def weighted_topic_choice():
-    weighted_topics = []
-
-    for topic, score in NICHE_TOPICS.items():
-        weighted_topics.extend([topic] * score)
-
-    return random.choice(weighted_topics)
 
 def generate_hook():
     return random.choice(HOOK_TEMPLATES)
@@ -104,36 +88,62 @@ def save_trend_rankings():
     return rankings
 
 def generate_script(topic, hook):
-    retention_line = random.choice(RETENTION_LINES)
+    scenes = [
+        {
+            "scene": 1,
+            "text": hook,
+            "duration": 3,
+            "keywords": [topic, "mystery"]
+        },
+        {
+            "scene": 2,
+            "text": f"Most people have never heard about {topic}.",
+            "duration": 4,
+            "keywords": [topic]
+        },
+        {
+            "scene": 3,
+            "text": (
+                "But once you learn the truth, "
+                "it becomes impossible to forget."
+            ),
+            "duration": 4,
+            "keywords": ["dark", "history"]
+        },
+        {
+            "scene": 4,
+            "text": (
+                "Researchers still debate "
+                "what really happened."
+            ),
+            "duration": 4,
+            "keywords": ["research", "mystery"]
+        },
+        {
+            "scene": 5,
+            "text": (
+                "And the strangest part "
+                "has never been explained."
+            ),
+            "duration": 5,
+            "keywords": ["creepy", "unknown"]
+        },
+        {
+            "scene": 6,
+            "text": "Follow for more strange stories.",
+            "duration": 3,
+            "keywords": ["cta"]
+        }
+    ]
 
-    return f"""
-HOOK:
-{hook}
-
-TOPIC:
-{topic.title()}
-
-SCRIPT:
-Most people have never heard about {topic}.
-But once you do, it becomes impossible to forget.
-
-{retention_line}
-
-Researchers still debate what really happened.
-Some details are strange enough to sound made up.
-But the evidence makes the story even crazier.
-
-And the wildest part?
-Nobody can fully explain it even today.
-
-CTA:
-Follow for more strange stories.
-"""
+    return scenes
 
 def generate_metadata(topic, trend_score):
     return {
         "title": f"{topic.title()} You Probably Didn't Know",
-        "description": f"A strange short story about {topic}.",
+        "description": (
+            f"A strange short story about {topic}."
+        ),
         "hashtags": [
             "#strangefacts",
             "#weirdhistory",
@@ -153,32 +163,61 @@ def generate_metadata(topic, trend_score):
         ),
     }
 
-def render_video(index, topic):
+def render_video(index, scenes):
+    total_duration = sum(
+        scene["duration"]
+        for scene in scenes
+    )
+
+    filter_parts = []
+
+    current_time = 0
+
+    for scene in scenes:
+        start = current_time
+        end = current_time + scene["duration"]
+
+        safe_text = (
+            scene["text"]
+            .replace("'", "")
+            .replace(":", "")
+        )
+
+        filter_parts.append(
+            "drawtext="
+            f"text='{safe_text}':"
+            "fontcolor=white:"
+            "fontsize=64:"
+            "borderw=4:"
+            "bordercolor=black:"
+            "x=(w-text_w)/2:"
+            "y=h-500:"
+            f"enable='between(t,{start},{end})'"
+        )
+
+        current_time = end
+
+    filtergraph = ",".join(filter_parts)
+
     output_path = (
         f"{OUTPUT_DIR}/videos/video_{index}.mp4"
     )
 
-    safe_text = topic.replace("'", "")
-
     command = [
         "ffmpeg",
+        "-y",
         "-f",
         "lavfi",
         "-i",
-        "color=c=black:s=1080x1920:d=8",
-        "-vf",
         (
-            "drawtext="
-            f"text='{safe_text}':"
-            "fontcolor=white:"
-            "fontsize=72:"
-            "x=(w-text_w)/2:"
-            "y=(h-text_h)/2"
+            f"color=c=black:"
+            f"s=1080x1920:"
+            f"d={total_duration}"
         ),
+        "-vf",
+        filtergraph,
         "-c:v",
         "libx264",
-        "-t",
-        "8",
         "-pix_fmt",
         "yuv420p",
         output_path
@@ -199,7 +238,7 @@ def save_content(index, script, metadata):
 
     script_path = (
         f"{OUTPUT_DIR}/scripts/"
-        f"video_{index}_{timestamp}.txt"
+        f"video_{index}_{timestamp}.json"
     )
 
     metadata_path = (
@@ -212,7 +251,7 @@ def save_content(index, script, metadata):
         "w",
         encoding="utf-8"
     ) as f:
-        f.write(script)
+        json.dump(script, f, indent=2)
 
     with open(
         metadata_path,
@@ -234,11 +273,12 @@ def save_content(index, script, metadata):
         ) as f:
             json.dump(
                 {
-                    "reason":
+                    "reason": (
                         "High trend score, "
                         "consider InVideo or "
-                        "Sora enhancement.",
-                    "script_file": script_path,
+                        "Sora enhancement."
+                    ),
+                    "script_data": script,
                     "metadata": metadata
                 },
                 f,
@@ -282,7 +322,7 @@ def run():
 
         render_video(
             i + 1,
-            topic
+            script
         )
 
         print(
