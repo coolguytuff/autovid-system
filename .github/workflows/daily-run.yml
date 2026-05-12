@@ -9,6 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
