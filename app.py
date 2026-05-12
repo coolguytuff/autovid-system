@@ -24,16 +24,34 @@ NICHE_TOPICS = {
 }
 
 HOOK_TEMPLATES = [
-    "This sounds fake, but it's real.",
-    "Nobody expected this to happen.",
-    "This mystery still hasn't been solved.",
-    "The scariest part is what they found next.",
-    "This was hidden from the public.",
-    "This discovery terrified researchers.",
-    "This place should not exist.",
-    "This is one of history's strangest events.",
-    "People still debate whether this was real.",
-    "This changed everything.",
+    "THIS SOUNDS FAKE, BUT IT'S REAL.",
+    "NOBODY EXPECTED THIS TO HAPPEN.",
+    "THIS MYSTERY STILL HASN'T BEEN SOLVED.",
+    "THE SCARIEST PART IS WHAT THEY FOUND NEXT.",
+    "THIS WAS HIDDEN FROM THE PUBLIC.",
+    "THIS DISCOVERY TERRIFIED RESEARCHERS.",
+    "THIS PLACE SHOULD NOT EXIST.",
+    "THIS IS ONE OF HISTORY'S STRANGEST EVENTS.",
+    "PEOPLE STILL DEBATE WHETHER THIS WAS REAL.",
+    "THIS CHANGED EVERYTHING.",
+]
+
+NARRATIVE_PATTERNS = [
+    {
+        "type": "forbidden_truth",
+        "middle": "What they discovered was never meant to be public.",
+        "ending": "And people still debate what really happened."
+    },
+    {
+        "type": "unsolved_mystery",
+        "middle": "Researchers still cannot explain the evidence.",
+        "ending": "And the mystery remains unsolved today."
+    },
+    {
+        "type": "terrifying_discovery",
+        "middle": "The discovery shocked everyone involved.",
+        "ending": "And nobody fully understands it."
+    },
 ]
 
 BACKGROUND_COLORS = [
@@ -43,6 +61,8 @@ BACKGROUND_COLORS = [
     "0x080d14",
     "0x120909",
     "0x0b1110",
+    "0x161616",
+    "0x1b0f0f",
 ]
 
 def ensure_dirs():
@@ -97,53 +117,53 @@ def save_trend_rankings():
     return rankings
 
 def generate_script(topic, hook):
+    pattern = random.choice(NARRATIVE_PATTERNS)
+
     return [
         {
             "scene": 1,
             "text": hook,
-            "duration": 3,
+            "duration": 2,
             "role": "hook",
             "keywords": [topic, "mystery"],
+            "emphasis": True,
         },
         {
             "scene": 2,
             "text": f"Most people have never heard about {topic}.",
-            "duration": 4,
+            "duration": 3,
             "role": "setup",
             "keywords": [topic],
+            "emphasis": False,
         },
         {
             "scene": 3,
-            "text": "But once you learn the truth, it becomes impossible to forget.",
+            "text": pattern["middle"],
             "duration": 4,
-            "role": "curiosity",
+            "role": "middle",
             "keywords": ["dark", "truth", topic],
+            "emphasis": True,
         },
         {
             "scene": 4,
-            "text": "Researchers still debate what really happened.",
-            "duration": 4,
-            "role": "authority",
-            "keywords": ["research", "history", "mystery"],
-        },
-        {
-            "scene": 5,
-            "text": "And the strangest part has never been explained.",
+            "text": pattern["ending"],
             "duration": 5,
             "role": "payoff",
             "keywords": ["unknown", "creepy", topic],
+            "emphasis": True,
         },
         {
-            "scene": 6,
-            "text": "Follow for more strange stories.",
-            "duration": 3,
+            "scene": 5,
+            "text": "FOLLOW FOR MORE STRANGE STORIES.",
+            "duration": 2,
             "role": "cta",
             "keywords": ["follow", "cta"],
+            "emphasis": False,
         },
     ]
 
 def script_to_text(scenes):
-    return "\n".join([f"{s['scene']}. {s['text']}" for s in scenes])
+    return "\n".join([f"{scene['scene']}. {scene['text']}" for scene in scenes])
 
 def generate_metadata(topic, trend_score):
     title_options = [
@@ -165,19 +185,29 @@ def generate_metadata(topic, trend_score):
         ],
         "platform_fit": ["TikTok", "YouTube Shorts", "Instagram Reels"],
         "trend_score": trend_score,
-        "recommended_length_seconds": 23,
+        "predicted_hook_strength": random.randint(80, 99),
+        "predicted_rewatchability": random.randint(75, 98),
+        "recommended_length_seconds": 16,
         "style": "dark documentary + fast curiosity pacing",
+        "voice_style": "dark_documentary",
+        "narration_priority": "high",
+        "caption_style": "cinematic_large",
     }
 
 def write_caption_file(index, scene):
     path = OUTPUT_DIR / "captions" / f"video_{index}_scene_{scene['scene']}.txt"
+
     with open(path, "w", encoding="utf-8") as f:
         f.write(scene["text"])
+
     return path
 
 def render_scene(video_index, scene, scene_path):
     caption_file = write_caption_file(video_index, scene)
     color = random.choice(BACKGROUND_COLORS)
+
+    font_size = "84" if scene.get("emphasis") else "68"
+    box_opacity = "0.45" if scene.get("emphasis") else "0.35"
 
     command = [
         "ffmpeg",
@@ -188,15 +218,19 @@ def render_scene(video_index, scene, scene_path):
         f"color=c={color}:s=1080x1920:d={scene['duration']}",
         "-vf",
         (
-            f"drawbox=x=0:y=0:w=1080:h=1920:color=black@0.15:t=fill,"
+            "scale=1200:2133,"
+            "crop=1080:1920:"
+            "x='(iw-1080)/2 + sin(t*0.3)*20':"
+            "y='(ih-1920)/2 + cos(t*0.2)*20',"
+            "drawbox=x=0:y=0:w=1080:h=1920:color=black@0.25:t=fill,"
             f"drawtext=textfile='{caption_file}':"
             "fontcolor=white:"
-            "fontsize=64:"
-            "borderw=5:"
+            f"fontsize={font_size}:"
+            "borderw=6:"
             "bordercolor=black:"
             "box=1:"
-            "boxcolor=black@0.35:"
-            "boxborderw=28:"
+            f"boxcolor=black@{box_opacity}:"
+            "boxborderw=35:"
             "x=(w-text_w)/2:"
             "y=h-620"
         ),
@@ -221,6 +255,7 @@ def render_video(index, scenes):
         scene_files.append(scene_path)
 
     concat_file = temp_dir / "concat.txt"
+
     with open(concat_file, "w", encoding="utf-8") as f:
         for scene_file in scene_files:
             f.write(f"file '{scene_file.resolve()}'\n")
