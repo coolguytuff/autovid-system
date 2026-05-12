@@ -10,6 +10,7 @@ import requests
 import shutil
 import asyncio
 import textwrap
+import re
 from pathlib import Path
 
 import edge_tts
@@ -32,54 +33,90 @@ NICHE_TOPICS = {
 
 STORY_TEMPLATES = [
     {
-        "hook": "THIS PLACE IS REAL, BUT YOU ARE NOT ALLOWED TO GO THERE.",
-        "setup": "At first, it sounds like a normal restricted area.",
-        "escalation": "Then you realize the rules are not there for privacy.",
-        "reveal": "They are there because one mistake can become deadly fast.",
-        "twist": "And that is why the warnings are treated like law.",
-        "loop": "So if you ever see the sign, do not ignore it.",
-        "emotion": "fear",
-        "visuals": [
-            ["restricted area", "warning sign", "dark road"],
-            ["aerial island", "remote location", "ocean"],
-            ["abandoned building", "danger sign", "fence"],
-            ["storm clouds", "dangerous place", "cinematic"],
-            ["no entry sign", "dark cinematic", "security"],
-            ["dark road", "warning sign", "night"],
+        "hook": "THIS ISLAND IS ON MAPS, BUT PEOPLE ARE WARNED NOT TO GO THERE.",
+        "beats": [
+            {
+                "text": "Cargo ships are told to stay several miles away.",
+                "visuals": ["cargo ship storm", "ocean aerial", "danger sea cinematic"],
+            },
+            {
+                "text": "One crew ignored the warning in 2012.",
+                "visuals": ["old ship dark ocean", "night sea", "storm waves cinematic"],
+            },
+            {
+                "text": "Their navigation system suddenly stopped working.",
+                "visuals": ["broken radar", "gps glitch", "navigation room cinematic"],
+            },
+            {
+                "text": "Then the radio cut out completely.",
+                "visuals": ["radio static", "dark control room", "communication failure"],
+            },
+            {
+                "text": "When another ship arrived the next morning, the island was gone.",
+                "visuals": ["empty ocean aerial", "foggy sea", "mysterious island cinematic"],
+            },
+            {
+                "text": "And nobody has fully explained what happened there.",
+                "visuals": ["mystery ocean", "dark waves cinematic", "satellite map"],
+            },
         ],
     },
     {
-        "hook": "THIS MYSTERY SHOULD HAVE BEEN SOLVED YEARS AGO.",
-        "setup": "Investigators had witnesses, evidence, and a clear timeline.",
-        "escalation": "But every answer created a bigger problem.",
-        "reveal": "The strangest detail was not what disappeared.",
-        "twist": "It was what was left behind.",
-        "loop": "That is why people still argue about it today.",
-        "emotion": "curiosity",
-        "visuals": [
-            ["detective board", "mystery", "dark room"],
-            ["old documents", "investigation", "papers"],
-            ["empty street", "night", "cinematic"],
-            ["close up evidence", "flashlight", "dark"],
-            ["old newspaper", "secret", "mystery"],
-            ["dark room", "files", "investigation"],
+        "hook": "THIS CASE LOOKED SOLVED UNTIL INVESTIGATORS FOUND ONE DETAIL.",
+        "beats": [
+            {
+                "text": "The timeline matched almost perfectly.",
+                "visuals": ["detective board", "investigation papers", "crime evidence cinematic"],
+            },
+            {
+                "text": "But security footage showed something impossible.",
+                "visuals": ["security camera glitch", "surveillance footage", "dark hallway cinematic"],
+            },
+            {
+                "text": "One person appeared in two different places at once.",
+                "visuals": ["shadow figure", "split hallway", "dark silhouette"],
+            },
+            {
+                "text": "Investigators thought the footage was corrupted.",
+                "visuals": ["computer analysis", "video investigation", "detective workstation"],
+            },
+            {
+                "text": "Then they discovered three cameras captured the same thing.",
+                "visuals": ["multiple monitors", "security room", "camera feeds cinematic"],
+            },
+            {
+                "text": "That is why people still argue about the case today.",
+                "visuals": ["unsolved case files", "mystery documents", "dark archive room"],
+            },
         ],
     },
     {
-        "hook": "THEY FOUND SOMETHING THAT DID NOT MAKE SENSE.",
-        "setup": "The discovery looked ordinary for about five seconds.",
-        "escalation": "Then the details started contradicting each other.",
-        "reveal": "One part of it should not have been possible.",
-        "twist": "And that is what made researchers look twice.",
-        "loop": "The weirdest part is that nobody fully agrees on what it means.",
-        "emotion": "shock",
-        "visuals": [
-            ["archaeology discovery", "dark cinematic", "artifact"],
-            ["scientist lab", "mysterious object", "close up"],
-            ["ancient ruins", "stone", "cinematic"],
-            ["old artifact", "museum", "dramatic"],
-            ["researchers", "dark lab", "evidence"],
-            ["ancient site", "mystery", "sunset"],
+        "hook": "RESEARCHERS FOUND SOMETHING BURIED THAT SHOULD NOT HAVE EXISTED.",
+        "beats": [
+            {
+                "text": "At first, it looked like a normal excavation.",
+                "visuals": ["archaeology dig", "desert ruins", "ancient excavation cinematic"],
+            },
+            {
+                "text": "Then workers uncovered a perfectly smooth metal surface.",
+                "visuals": ["metal artifact close up", "ancient object", "mysterious discovery cinematic"],
+            },
+            {
+                "text": "The material showed almost no signs of corrosion.",
+                "visuals": ["scientist lab analysis", "artifact testing", "research cinematic"],
+            },
+            {
+                "text": "Some researchers believed it was far newer than the ruins around it.",
+                "visuals": ["scientists discussion", "ancient ruins aerial", "historical mystery"],
+            },
+            {
+                "text": "Others argued that should have been impossible.",
+                "visuals": ["dark laboratory", "artifact mystery", "research footage"],
+            },
+            {
+                "text": "And the debate still has not completely ended.",
+                "visuals": ["museum artifact", "ancient object cinematic", "mystery archive"],
+            },
         ],
     },
 ]
@@ -173,49 +210,36 @@ def save_trend_rankings():
 
 def generate_script(topic):
     template = random.choice(STORY_TEMPLATES)
-    emotion = template["emotion"]
-
-    scene_texts = [
-        template["hook"],
-        template["setup"],
-        template["escalation"],
-        template["reveal"],
-        template["twist"],
-        template["loop"],
-    ]
-
-    roles = [
-        "hook",
-        "setup",
-        "escalation",
-        "reveal",
-        "twist",
-        "loop",
-    ]
-
-    base_durations = [
-        1.4,
-        2.0,
-        2.3,
-        2.4,
-        2.4,
-        1.8,
-    ]
 
     scenes = []
 
-    for idx, text in enumerate(scene_texts):
-        visual_keywords = template["visuals"][idx]
+    hook_text = template["hook"]
+
+    scenes.append(
+        {
+            "scene": 1,
+            "text": hook_text,
+            "caption_text": wrap_caption(hook_text),
+            "base_duration": 1.6,
+            "role": "hook",
+            "keywords": [topic, "mystery", "cinematic"],
+            "emphasis": True,
+            "emotion": "shock",
+            "visual_style": "high contrast cinematic vertical",
+        }
+    )
+
+    for idx, beat in enumerate(template["beats"]):
         scenes.append(
             {
-                "scene": idx + 1,
-                "text": text,
-                "caption_text": wrap_caption(text),
-                "base_duration": base_durations[idx],
-                "role": roles[idx],
-                "keywords": visual_keywords + [topic],
-                "emphasis": idx in [0, 3, 4],
-                "emotion": emotion if idx != 1 else "curiosity",
+                "scene": idx + 2,
+                "text": beat["text"],
+                "caption_text": wrap_caption(beat["text"]),
+                "base_duration": 2.0,
+                "role": "story",
+                "keywords": beat["visuals"] + [topic],
+                "emphasis": idx in [2, 4],
+                "emotion": "mystery",
                 "visual_style": "high contrast cinematic vertical",
             }
         )
@@ -243,9 +267,9 @@ def generate_metadata(topic, trend_score):
         ],
         "platform_fit": ["TikTok", "YouTube Shorts", "Instagram Reels"],
         "trend_score": trend_score,
-        "style": "retention-focused documentary short",
-        "voice_style": "edge_tts_neural",
-        "caption_style": "white cinematic safe-zone captions",
+        "style": "event-driven retention documentary short",
+        "voice_style": "edge_tts_neural_varied",
+        "caption_style": "white safe-zone captions",
         "thumbnail_focus": topic,
     }
 
@@ -258,20 +282,29 @@ def write_caption_file(index, scene):
     return path
 
 async def generate_narration_async(text, output_path):
-    voice = "en-US-ChristopherNeural"
+    voices = [
+        "en-US-AndrewNeural",
+        "en-US-ChristopherNeural",
+        "en-US-EricNeural",
+    ]
+
+    selected_voice = random.choice(voices)
+
+    cleaned = re.sub(r"\s+", " ", text).strip()
 
     try:
         communicate = edge_tts.Communicate(
-            text=text,
-            voice=voice,
-            rate="-3%",
-            pitch="-2Hz",
+            text=cleaned,
+            voice=selected_voice,
+            rate="-8%",
+            pitch="-4Hz",
+            volume="+5%",
         )
     except TypeError:
         communicate = edge_tts.Communicate(
-            text=text,
-            voice=voice,
-            rate="-3%",
+            text=cleaned,
+            voice=selected_voice,
+            rate="-8%",
         )
 
     await communicate.save(str(output_path))
@@ -291,17 +324,10 @@ def get_caption_style(scene):
     }
 
 def build_visual_query(scene):
-    emotion = scene.get("emotion", "mystery")
-    keywords = " ".join(scene["keywords"])
+    keywords = scene.get("keywords", [])
+    joined = " ".join(keywords)
 
-    emotion_map = {
-        "fear": "danger warning dark cinematic",
-        "curiosity": "mysterious evidence cinematic close up",
-        "shock": "dramatic discovery intense cinematic",
-        "mystery": "unknown mystery cinematic atmosphere",
-    }
-
-    return f"{keywords} {emotion_map.get(emotion, 'cinematic mystery')} vertical video"
+    return f"{joined} cinematic vertical dramatic realistic footage"
 
 def download_stock_video(query, output_path):
     if not PEXELS_API_KEY:
@@ -375,11 +401,14 @@ def render_scene(video_index, scene, scene_path):
     scene_duration = max(float(scene["base_duration"]), audio_duration + 0.55)
 
     query = build_visual_query(scene)
+
+    print(f"[visual-query] scene {scene['scene']}: {query}")
+
     has_video = download_stock_video(query, background_video)
 
     caption_style = get_caption_style(scene)
 
-    font_size = "64" if scene.get("emphasis") else "58"
+    font_size = "60" if scene.get("emphasis") else "54"
     y_position = "h-760" if scene.get("emphasis") else "h-700"
 
     if has_video:
@@ -421,9 +450,7 @@ def render_scene(video_index, scene, scene_path):
         )
         map_audio = ["-map", "[aout]"]
     else:
-        audio_filter = (
-            "[1:a]volume=0.09[aout];"
-        )
+        audio_filter = "[1:a]volume=0.09[aout];"
         map_audio = ["-map", "[aout]"]
 
     video_filter = (
@@ -433,9 +460,9 @@ def render_scene(video_index, scene, scene_path):
         "x='(iw-1080)/2 + sin(t*0.8)*16':"
         "y='(ih-1920)/2 + cos(t*0.55)*16',"
         "fps=30,"
+        "drawbox=x=0:y=0:w=1080:h=1920:color=white@0.12:t=fill:enable='between(mod(t,2.1),0,0.045)',"
         "eq=contrast=1.10:saturation=1.08,"
         "drawbox=x=0:y=0:w=1080:h=1920:color=black@0.32:t=fill,"
-        "drawbox=x=0:y=0:w=1080:h=1920:color=white@0.10:t=fill:enable='between(mod(t,2.25),0,0.055)',"
         f"drawtext=textfile='{caption_file}':"
         f"fontcolor={caption_style['fontcolor']}:"
         f"fontsize={font_size}:"
@@ -518,9 +545,9 @@ def render_video(index, scenes):
         "-c:v",
         "libx264",
         "-preset",
-        "veryfast",
+        "faster",
         "-crf",
-        "28",
+        "30",
         "-c:a",
         "aac",
         "-b:a",
