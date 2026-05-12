@@ -24,3 +24,8 @@ jobs:
       - name: Run automation
         run: |
           python app.py all
+      - name: Upload output artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: autovid-output
+          path: output/
