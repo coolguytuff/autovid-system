@@ -6,16 +6,13 @@ import csv
 import random
 import datetime
 import subprocess
+import requests
+import shutil
 from pathlib import Path
 
 OUTPUT_DIR = Path("output")
 
-SERIES_TYPES = [
-    "forbidden places",
-    "unsolved mysteries",
-    "terrifying discoveries",
-    "ancient secrets",
-]
+PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
 
 NICHE_TOPICS = {
     "creepy discoveries": 97,
@@ -33,28 +30,23 @@ NICHE_TOPICS = {
 HOOK_TEMPLATES = [
     {
         "text": "THIS SOUNDS FAKE, BUT IT'S REAL.",
-        "strength": 97,
-        "emotion": "curiosity",
-    },
-    {
-        "text": "NOBODY EXPECTED THIS TO HAPPEN.",
-        "strength": 92,
-        "emotion": "shock",
+        "strength": 96
     },
     {
         "text": "THIS MYSTERY STILL HASN'T BEEN SOLVED.",
-        "strength": 98,
-        "emotion": "mystery",
+        "strength": 99
     },
     {
         "text": "THIS PLACE SHOULD NOT EXIST.",
-        "strength": 99,
-        "emotion": "fear",
+        "strength": 95
     },
     {
-        "text": "THIS WAS HIDDEN FROM THE PUBLIC.",
-        "strength": 96,
-        "emotion": "curiosity",
+        "text": "THIS DISCOVERY TERRIFIED RESEARCHERS.",
+        "strength": 94
+    },
+    {
+        "text": "NOBODY EXPECTED THIS TO HAPPEN.",
+        "strength": 92
     },
 ]
 
@@ -63,16 +55,19 @@ NARRATIVE_PATTERNS = [
         "type": "forbidden_truth",
         "middle": "What they discovered was never meant to be public.",
         "ending": "And people still debate what really happened.",
+        "emotion": "fear"
     },
     {
         "type": "unsolved_mystery",
         "middle": "Researchers still cannot explain the evidence.",
         "ending": "And the mystery remains unsolved today.",
+        "emotion": "curiosity"
     },
     {
         "type": "terrifying_discovery",
         "middle": "The discovery shocked everyone involved.",
         "ending": "And nobody fully understands it.",
+        "emotion": "shock"
     },
 ]
 
@@ -87,19 +82,6 @@ BACKGROUND_COLORS = [
     "0x1b0f0f",
 ]
 
-SOUNDTRACK_STYLES = [
-    "dark_ambient",
-    "cinematic_tension",
-    "mystery_pulse",
-    "deep_documentary",
-]
-
-TRANSITION_STYLES = [
-    "shock_cut",
-    "slow_fade",
-    "quick_flash",
-]
-
 def ensure_dirs():
     for folder in [
         "scripts",
@@ -111,15 +93,19 @@ def ensure_dirs():
         "logs",
         "packages",
         "temp",
-        "analytics",
     ]:
-        (OUTPUT_DIR / folder).mkdir(parents=True, exist_ok=True)
+        (OUTPUT_DIR / folder).mkdir(
+            parents=True,
+            exist_ok=True
+        )
 
-def weighted_hook_choice():
+def generate_hook():
     weighted = []
 
     for hook in HOOK_TEMPLATES:
-        weighted.extend([hook] * hook["strength"])
+        weighted.extend(
+            [hook["text"]] * hook["strength"]
+        )
 
     return random.choice(weighted)
 
@@ -150,7 +136,10 @@ def generate_trend_score(topic):
     }
 
 def save_trend_rankings():
-    rankings = [generate_trend_score(topic) for topic in NICHE_TOPICS]
+    rankings = [
+        generate_trend_score(topic)
+        for topic in NICHE_TOPICS
+    ]
 
     rankings.sort(
         key=lambda x: x["total_score"],
@@ -166,97 +155,116 @@ def save_trend_rankings():
 
     return rankings
 
-def build_series():
-    series_name = random.choice(SERIES_TYPES)
-
-    return {
-        "series_name": series_name,
-        "visual_style": "dark_cinematic",
-        "soundtrack_style": random.choice(SOUNDTRACK_STYLES),
-    }
-
-def generate_script(topic, hook_data, series_data):
-    pattern = random.choice(NARRATIVE_PATTERNS)
+def generate_script(topic, hook):
+    pattern = random.choice(
+        NARRATIVE_PATTERNS
+    )
 
     return [
         {
             "scene": 1,
-            "text": hook_data["text"],
+            "text": hook,
             "duration": 2,
             "role": "hook",
-            "emotion": hook_data["emotion"],
-            "visual_energy": "extreme",
-            "transition_style": "shock_cut",
             "keywords": [topic, "mystery"],
-            "visual_style": "dark_cinematic",
             "emphasis": True,
+            "emotion": pattern["emotion"],
+            "visual_style": "dark_cinematic",
+            "transition_style": "shock_cut"
         },
         {
             "scene": 2,
-            "text": f"Most people have never heard about {topic}.",
+            "text": (
+                f"Most people have never "
+                f"heard about {topic}."
+            ),
             "duration": 3,
             "role": "setup",
-            "emotion": "curiosity",
-            "visual_energy": "medium",
-            "transition_style": "quick_flash",
             "keywords": [topic],
-            "visual_style": "dark_cinematic",
             "emphasis": False,
+            "emotion": "curiosity",
+            "visual_style": "dark_cinematic",
+            "transition_style": "fade"
         },
         {
             "scene": 3,
             "text": pattern["middle"],
             "duration": 4,
             "role": "middle",
-            "emotion": "fear",
-            "visual_energy": "high",
-            "transition_style": "slow_fade",
-            "keywords": ["dark", "truth", topic],
-            "visual_style": "dark_cinematic",
+            "keywords": [
+                "dark",
+                "truth",
+                topic
+            ],
             "emphasis": True,
+            "emotion": pattern["emotion"],
+            "visual_style": "dark_cinematic",
+            "transition_style": "impact"
         },
         {
             "scene": 4,
             "text": pattern["ending"],
             "duration": 5,
             "role": "payoff",
-            "emotion": "mystery",
-            "visual_energy": "high",
-            "transition_style": "slow_fade",
-            "keywords": ["unknown", "creepy"],
-            "visual_style": "dark_cinematic",
+            "keywords": [
+                "unknown",
+                "creepy",
+                topic
+            ],
             "emphasis": True,
+            "emotion": "fear",
+            "visual_style": "dark_cinematic",
+            "transition_style": "slow_fade"
         },
         {
             "scene": 5,
-            "text": "FOLLOW FOR MORE STRANGE STORIES.",
+            "text": (
+                "FOLLOW FOR MORE "
+                "STRANGE STORIES."
+            ),
             "duration": 2,
             "role": "cta",
-            "emotion": "curiosity",
-            "visual_energy": "medium",
-            "transition_style": "quick_flash",
-            "keywords": ["follow"],
-            "visual_style": "dark_cinematic",
+            "keywords": [
+                "follow",
+                "cta"
+            ],
             "emphasis": False,
+            "emotion": "engagement",
+            "visual_style": "clean",
+            "transition_style": "fade"
         },
     ]
 
 def script_to_text(scenes):
     return "\n".join(
-        [f"{scene['scene']}. {scene['text']}" for scene in scenes]
+        [
+            f"{scene['scene']}. "
+            f"{scene['text']}"
+            for scene in scenes
+        ]
     )
 
-def generate_metadata(topic, trend_score, hook_data, series_data):
+def generate_metadata(topic, trend_score):
     title_options = [
-        f"{topic.title()} You Probably Didn't Know",
-        f"The Strange Truth About {topic.title()}",
-        f"This {topic.title()} Story Sounds Fake",
+        (
+            f"{topic.title()} "
+            f"You Probably Didn't Know"
+        ),
+        (
+            f"The Strange Truth About "
+            f"{topic.title()}"
+        ),
+        (
+            f"This {topic.title()} "
+            f"Story Sounds Fake"
+        ),
     ]
 
     return {
         "title": random.choice(title_options),
         "description": (
-            f"A short mystery-style story about {topic}."
+            f"A short mystery-style "
+            f"story about {topic}."
         ),
         "hashtags": [
             "#strangefacts",
@@ -269,46 +277,155 @@ def generate_metadata(topic, trend_score, hook_data, series_data):
         "platform_fit": [
             "TikTok",
             "YouTube Shorts",
-            "Instagram Reels",
+            "Instagram Reels"
         ],
         "trend_score": trend_score,
-        "predicted_hook_strength": hook_data["strength"],
-        "predicted_rewatchability": random.randint(75, 98),
+        "predicted_hook_strength":
+            random.randint(80, 99),
+        "predicted_rewatchability":
+            random.randint(75, 98),
         "recommended_length_seconds": 16,
-        "style": "dark documentary + fast curiosity pacing",
-        "voice_style": "dark_documentary",
-        "narration_priority": "high",
-        "caption_style": "cinematic_large",
-        "soundtrack_style": series_data["soundtrack_style"],
-        "series_name": series_data["series_name"],
-        "thumbnail_focus": topic,
-        "thumbnail_style": "high_curiosity",
+        "style":
+            "dark documentary + "
+            "fast curiosity pacing",
+        "voice_style":
+            "dark_documentary",
+        "narration_priority":
+            "high",
+        "caption_style":
+            "cinematic_large",
+        "soundtrack_style":
+            "dark_ambient_tension",
+        "thumbnail_focus":
+            topic,
     }
 
 def write_caption_file(index, scene):
     path = (
         OUTPUT_DIR
         / "captions"
-        / f"video_{index}_scene_{scene['scene']}.txt"
+        / (
+            f"video_{index}_"
+            f"scene_{scene['scene']}.txt"
+        )
     )
 
-    with open(path, "w", encoding="utf-8") as f:
+    with open(
+        path,
+        "w",
+        encoding="utf-8"
+    ) as f:
         f.write(scene["text"])
 
     return path
 
-def render_scene(video_index, scene, scene_path):
+def download_stock_video(
+    query,
+    output_path
+):
+    if not PEXELS_API_KEY:
+        return False
+
+    headers = {
+        "Authorization":
+            PEXELS_API_KEY
+    }
+
+    url = (
+        "https://api.pexels.com/videos/search"
+        f"?query={query}&per_page=1"
+    )
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=20
+        )
+
+        data = response.json()
+
+        videos = data.get(
+            "videos",
+            []
+        )
+
+        if not videos:
+            return False
+
+        video_files = videos[0].get(
+            "video_files",
+            []
+        )
+
+        if not video_files:
+            return False
+
+        best_video = sorted(
+            video_files,
+            key=lambda x:
+                x.get("width", 0),
+            reverse=True
+        )[0]
+
+        video_url = best_video["link"]
+
+        r = requests.get(
+            video_url,
+            stream=True,
+            timeout=30
+        )
+
+        with open(
+            output_path,
+            "wb"
+        ) as f:
+            shutil.copyfileobj(
+                r.raw,
+                f
+            )
+
+        return True
+
+    except Exception:
+        return False
+
+def render_scene(
+    video_index,
+    scene,
+    scene_path
+):
     caption_file = write_caption_file(
         video_index,
         scene
     )
 
-    color = random.choice(BACKGROUND_COLORS)
+    color = random.choice(
+        BACKGROUND_COLORS
+    )
+
+    background_video = (
+        OUTPUT_DIR
+        / "temp"
+        / (
+            f"bg_{video_index}_"
+            f"{scene['scene']}.mp4"
+        )
+    )
+
+    query = " ".join(
+        scene["keywords"]
+    )
+
+    has_video = download_stock_video(
+        query,
+        background_video
+    )
 
     font_size = (
-        "90"
+        "84"
         if scene.get("emphasis")
-        else "70"
+        else "68"
     )
 
     box_opacity = (
@@ -320,25 +437,47 @@ def render_scene(video_index, scene, scene_path):
     command = [
         "ffmpeg",
         "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        (
-            f"color=c={color}:"
-            f"s=1080x1920:"
-            f"d={scene['duration']}"
+
+        *(
+
+            [
+                "-stream_loop",
+                "-1",
+                "-i",
+                str(background_video),
+            ]
+
+            if has_video
+
+            else
+
+            [
+                "-f",
+                "lavfi",
+                "-i",
+                (
+                    f"color=c={color}:"
+                    f"s=1080x1920:"
+                    f"d={scene['duration']}"
+                ),
+            ]
+
         ),
+
         "-vf",
+
         (
             "scale=1200:2133,"
             "crop=1080:1920:"
             "x='(iw-1080)/2 + sin(t*0.3)*20':"
             "y='(ih-1920)/2 + cos(t*0.2)*20',"
 
-            "drawbox=x=0:y=0:w=1080:h=1920:"
+            "drawbox="
+            "x=0:y=0:w=1080:h=1920:"
             "color=black@0.25:t=fill,"
 
-            f"drawtext=textfile='{caption_file}':"
+            f"drawtext="
+            f"textfile='{caption_file}':"
             "fontcolor=white:"
             f"fontsize={font_size}:"
             "borderw=6:"
@@ -349,20 +488,29 @@ def render_scene(video_index, scene, scene_path):
             "x=(w-text_w)/2:"
             "y=h-620"
         ),
+
+        "-t",
+        str(scene["duration"]),
+
         "-c:v",
         "libx264",
+
         "-pix_fmt",
         "yuv420p",
+
         str(scene_path),
     ]
 
     subprocess.run(
         command,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
     )
 
-def render_video(index, scenes):
+def render_video(
+    index,
+    scenes
+):
     temp_dir = (
         OUTPUT_DIR
         / "temp"
@@ -379,7 +527,10 @@ def render_video(index, scenes):
     for scene in scenes:
         scene_path = (
             temp_dir
-            / f"scene_{scene['scene']}.mp4"
+            / (
+                f"scene_"
+                f"{scene['scene']}.mp4"
+            )
         )
 
         render_scene(
@@ -390,7 +541,10 @@ def render_video(index, scenes):
 
         scene_files.append(scene_path)
 
-    concat_file = temp_dir / "concat.txt"
+    concat_file = (
+        temp_dir
+        / "concat.txt"
+    )
 
     with open(
         concat_file,
@@ -399,7 +553,8 @@ def render_video(index, scenes):
     ) as f:
         for scene_file in scene_files:
             f.write(
-                f"file '{scene_file.resolve()}'\n"
+                f"file "
+                f"'{scene_file.resolve()}'\n"
             )
 
     output_path = (
@@ -425,16 +580,22 @@ def render_video(index, scenes):
     subprocess.run(
         command,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
     )
 
     return output_path
 
-def save_package(index, metadata):
+def save_package(
+    index,
+    metadata
+):
     package_path = (
         OUTPUT_DIR
         / "packages"
-        / f"video_{index}_platform_package.json"
+        / (
+            f"video_{index}_"
+            f"platform_package.json"
+        )
     )
 
     with open(
@@ -445,50 +606,69 @@ def save_package(index, metadata):
         json.dump(
             {
                 "youtube_shorts": {
-                    "title": metadata["title"],
-                    "description": metadata["description"],
-                    "hashtags": metadata["hashtags"],
+                    "title":
+                        metadata["title"],
+                    "description":
+                        metadata["description"],
+                    "hashtags":
+                        metadata["hashtags"],
                 },
                 "tiktok": {
-                    "caption": (
+                    "caption":
                         metadata["title"]
                         + " "
-                        + " ".join(metadata["hashtags"])
-                    ),
+                        + " ".join(
+                            metadata["hashtags"]
+                        ),
                 },
                 "instagram_reels": {
-                    "caption": (
+                    "caption":
                         metadata["description"]
                         + " "
-                        + " ".join(metadata["hashtags"])
-                    ),
+                        + " ".join(
+                            metadata["hashtags"]
+                        ),
                 },
             },
             f,
             indent=2,
         )
 
-def save_content(index, scenes, metadata):
-    timestamp = datetime.datetime.utcnow().strftime(
-        "%Y%m%d_%H%M%S"
+def save_content(
+    index,
+    scenes,
+    metadata
+):
+    timestamp = (
+        datetime.datetime.utcnow()
+        .strftime("%Y%m%d_%H%M%S")
     )
 
     script_json_path = (
         OUTPUT_DIR
         / "scripts"
-        / f"video_{index}_{timestamp}.json"
+        / (
+            f"video_{index}_"
+            f"{timestamp}.json"
+        )
     )
 
     script_txt_path = (
         OUTPUT_DIR
         / "scripts"
-        / f"video_{index}_{timestamp}.txt"
+        / (
+            f"video_{index}_"
+            f"{timestamp}.txt"
+        )
     )
 
     metadata_path = (
         OUTPUT_DIR
         / "metadata"
-        / f"video_{index}_{timestamp}.json"
+        / (
+            f"video_{index}_"
+            f"{timestamp}.json"
+        )
     )
 
     with open(
@@ -496,32 +676,49 @@ def save_content(index, scenes, metadata):
         "w",
         encoding="utf-8"
     ) as f:
-        json.dump(scenes, f, indent=2)
+        json.dump(
+            scenes,
+            f,
+            indent=2
+        )
 
     with open(
         script_txt_path,
         "w",
         encoding="utf-8"
     ) as f:
-        f.write(script_to_text(scenes))
+        f.write(
+            script_to_text(scenes)
+        )
 
     with open(
         metadata_path,
         "w",
         encoding="utf-8"
     ) as f:
-        json.dump(metadata, f, indent=2)
+        json.dump(
+            metadata,
+            f,
+            indent=2
+        )
 
-    save_package(index, metadata)
+    save_package(
+        index,
+        metadata
+    )
 
     if (
-        metadata["trend_score"]["total_score"]
+        metadata["trend_score"]
+        ["total_score"]
         >= 90
     ):
         premium_path = (
             OUTPUT_DIR
             / "premium"
-            / f"video_{index}_{timestamp}.json"
+            / (
+                f"video_{index}_"
+                f"{timestamp}.json"
+            )
         )
 
         with open(
@@ -532,21 +729,28 @@ def save_content(index, scenes, metadata):
             json.dump(
                 {
                     "reason":
-                        "High trend score. "
-                        "Consider InVideo or "
-                        "Sora enhancement.",
-                    "script_data": scenes,
-                    "metadata": metadata,
+                        (
+                            "High trend score. "
+                            "Consider InVideo "
+                            "or Sora enhancement."
+                        ),
+                    "script_data":
+                        scenes,
+                    "metadata":
+                        metadata
                 },
                 f,
-                indent=2,
+                indent=2
             )
 
 def write_performance_template():
     path = (
         OUTPUT_DIR
         / "logs"
-        / "performance_tracking_template.csv"
+        / (
+            "performance_"
+            "tracking_template.csv"
+        )
     )
 
     with open(
@@ -578,15 +782,15 @@ def run():
 
     write_performance_template()
 
-    series_data = build_series()
-
     selected_topics = [
         item["topic"]
         for item in rankings[:5]
     ]
 
-    for i, topic in enumerate(selected_topics):
-        hook_data = weighted_hook_choice()
+    for i, topic in enumerate(
+        selected_topics
+    ):
+        hook = generate_hook()
 
         trend_score = next(
             item
@@ -596,15 +800,12 @@ def run():
 
         scenes = generate_script(
             topic,
-            hook_data,
-            series_data
+            hook
         )
 
         metadata = generate_metadata(
             topic,
-            trend_score,
-            hook_data,
-            series_data
+            trend_score
         )
 
         save_content(
