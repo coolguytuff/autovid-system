@@ -40,6 +40,27 @@ NICHE_TOPICS = {
     "weird geography": 84,
 }
 
+GENERIC_PHRASES = [
+    "something impossible",
+    "changed everything",
+    "official story",
+    "people still debate",
+    "nobody expected",
+    "one detail",
+    "what really happened",
+    "the truth shocked",
+    "mysterious event",
+    "investigators discovered",
+]
+
+BANNED_VAGUE_WORDS = [
+    "something",
+    "someone",
+    "somebody",
+    "thing",
+    "situation",
+]
+
 
 def ensure_dirs():
     for folder in [
@@ -101,29 +122,9 @@ def wrap_caption(text, width=23):
 
 
 def generate_trend_score(topic):
-    base_score = NICHE_TOPICS.get(topic, 70)
-
-    novelty = random.randint(70, 100)
-    curiosity = random.randint(75, 100)
-    retention = random.randint(70, 100)
-    emotional_pull = random.randint(70, 100)
-
-    total = round(
-        base_score * 0.35
-        + novelty * 0.15
-        + curiosity * 0.25
-        + retention * 0.15
-        + emotional_pull * 0.10
-    )
-
     return {
         "topic": topic,
-        "base_score": base_score,
-        "novelty_score": novelty,
-        "curiosity_score": curiosity,
-        "predicted_retention_score": retention,
-        "emotional_pull_score": emotional_pull,
-        "total_score": total,
+        "total_score": NICHE_TOPICS.get(topic, 70),
     }
 
 
@@ -142,50 +143,117 @@ def save_trend_rankings():
     return rankings
 
 
+def validate_story(scenes):
+    if len(scenes) < 7:
+        raise Exception(
+            f"Story has insufficient scenes: {len(scenes)}"
+        )
+
+    full_text = " ".join(
+        [scene["caption"] for scene in scenes]
+    ).lower()
+
+    generic_hits = 0
+
+    for phrase in GENERIC_PHRASES:
+        if phrase.lower() in full_text:
+            generic_hits += 1
+
+    if generic_hits >= 2:
+        raise Exception(
+            f"Story too generic. Hits: {generic_hits}"
+        )
+
+    vague_hits = 0
+
+    for word in BANNED_VAGUE_WORDS:
+        vague_hits += full_text.count(word)
+
+    if vague_hits >= 10:
+        raise Exception(
+            f"Story too vague. Vague count: {vague_hits}"
+        )
+
+    unique_lines = len(
+        set(scene["caption"].lower() for scene in scenes)
+    )
+
+    if unique_lines < 7:
+        raise Exception("Duplicate scene lines detected.")
+
+    concrete_nouns = [
+        "door",
+        "island",
+        "camera",
+        "forest",
+        "city",
+        "room",
+        "scientist",
+        "tunnel",
+        "mountain",
+        "document",
+        "signal",
+        "ocean",
+        "facility",
+        "map",
+        "building",
+    ]
+
+    noun_hits = 0
+
+    for noun in concrete_nouns:
+        if noun in full_text:
+            noun_hits += 1
+
+    if noun_hits < 2:
+        raise Exception(
+            "Story lacks concrete visual details."
+        )
+
+
 def generate_cinematic_story(topic):
     prompt = f"""
-You are writing an ultra-retention-focused short-form mystery story.
+You are writing a REAL cinematic short-form mystery story.
 
 TOPIC:
 {topic}
 
-CRITICAL RULES:
+ABSOLUTE RULES:
 
-- Every line must introduce NEW information.
-- NEVER repeat the same emotional point.
-- Every scene must escalate.
-- Use active language.
-- Make the story feel cinematic.
-- Use short punchy sentences.
-- Create curiosity spikes.
-- Add contradiction, danger, mystery, or impossible details.
-- Avoid generic vague lines.
+- Every scene MUST introduce NEW information.
+- The story MUST progress logically.
+- Every scene MUST escalate tension.
+- Use SPECIFIC physical details.
+- Use named locations, objects, evidence, or discoveries.
+- Make scenes visually distinct.
+- Avoid generic suspense language.
 - Avoid filler.
-- Make viewers constantly think: 'wait what?'
+- Avoid repetition.
+- Make it feel like a real documentary.
+- Every scene must contain at least one concrete noun.
 
-STYLE:
-
-- TikTok mystery documentary
-- cinematic
-- fast-paced
-- suspenseful
-- highly visual
+DO NOT USE:
+- "something impossible"
+- "changed everything"
+- "nobody expected"
+- "what really happened"
+- "people still debate"
+- vague suspense filler
 
 OUTPUT FORMAT:
 
-Return EXACTLY 7 short scenes.
+Return ONLY valid JSON.
 
-Each scene should be:
-- 1 sentence
-- emotionally escalating
-- visually distinct
-- concrete
-- cinematic
+Example format:
 
-Do NOT label scenes.
-Do NOT use bullet points.
-Do NOT explain anything.
-Only output the 7 scene lines.
+[
+  {{
+    "caption": "A diver found a locked steel hatch beneath the ice.",
+    "visual_query": "underwater steel hatch diver"
+  }}
+]
+
+Return EXACTLY 7 scenes.
 """
 
     try:
@@ -195,8 +263,8 @@ Only output the 7 scene lines.
                 {
                     "role": "system",
                     "content": (
-                        "You write extremely high-retention "
-                        "short-form cinematic mystery scripts."
+                        "You create cinematic, concrete, "
+                        "high-retention mystery stories."
                     ),
                 },
                 {
@@ -204,45 +272,41 @@ Only output the 7 scene lines.
                     "content": prompt,
                 },
             ],
-            temperature=1.05,
-            max_tokens=400,
+            temperature=1.1,
+            max_tokens=900,
+            response_format={"type": "json_object"},
         )
 
         content = response.choices[0].message.content.strip()
 
-        lines = [
-            line.strip()
-            for line in content.split("\n")
-            if line.strip()
-        ]
+        print("\n[OPENAI RAW STORY OUTPUT]")
+        print(content)
+        print()
 
-        cleaned = []
+        parsed = json.loads(content)
 
-        for line in lines:
-            line = re.sub(r"^\d+[\.)-]?\s*", "", line)
+        if isinstance(parsed, dict):
+            if "scenes" in parsed:
+                scenes = parsed["scenes"]
+            else:
+                scenes = list(parsed.values())[0]
+        else:
+            scenes = parsed
 
-            if line:
-                cleaned.append(line)
+        validate_story(scenes)
 
-        if len(cleaned) < 5:
-            raise Exception("Story output too short.")
+        print("[FINAL STORY]")
 
-        return cleaned[:7]
+        for idx, scene in enumerate(scenes):
+            print(f"{idx+1}. {scene['caption']}")
+
+        return scenes[:7]
 
     except Exception as e:
         print("[story-engine-error]")
         print(str(e))
         traceback.print_exc()
-
-        return [
-            f"A strange event connected to {topic} shocked investigators.",
-            "Then someone discovered evidence that contradicted the official story.",
-            "One detail made the entire situation far more dangerous.",
-            "Witnesses claimed something impossible happened next.",
-            "Researchers realized the timeline no longer made sense.",
-            "Then a final discovery completely changed the investigation.",
-            "And people still debate what actually happened.",
-        ]
+        raise
 
 
 def generate_script(topic):
@@ -256,19 +320,15 @@ def generate_script(topic):
         scenes.append(
             {
                 "scene": idx + 1,
-                "text": line,
-                "caption_text": wrap_caption(line),
-                "base_duration": 1.8 if idx == 0 else 2.2,
-                "role": "story",
-                "keywords": [
-                    topic,
-                    line,
-                    "cinematic",
-                    "mystery",
-                ],
+                "text": line["caption"],
+                "caption_text": wrap_caption(
+                    line["caption"]
+                ),
+                "visual_query": line["visual_query"],
+                "base_duration": (
+                    1.9 if idx == 0 else 2.25
+                ),
                 "emphasis": emphasis,
-                "emotion": "mystery",
-                "visual_style": "cinematic dramatic realistic",
             }
         )
 
@@ -293,19 +353,12 @@ def generate_metadata(topic, trend_score):
             "#facts",
             "#strangefacts",
         ],
-        "platform_fit": [
-            "TikTok",
-            "YouTube Shorts",
-            "Instagram Reels",
-        ],
         "trend_score": trend_score,
     }
 
 
 async def generate_narration_async(text, output_path):
     cleaned = re.sub(r"\s+", " ", text).strip()
-
-    cleaned = cleaned.replace(".", ". ")
 
     try:
         audio = voice_client.generate(
@@ -321,36 +374,24 @@ async def generate_narration_async(text, output_path):
     except Exception as e:
         print(f"[elevenlabs-error] {e}")
 
-        voices = [
-            "en-US-AndrewMultilingualNeural",
-            "en-US-ChristopherNeural",
-            "en-US-EricNeural",
-        ]
-
-        selected_voice = random.choice(voices)
-
         communicate = edge_tts.Communicate(
             text=cleaned,
-            voice=selected_voice,
-            rate="-13%",
+            voice="en-US-AndrewMultilingualNeural",
+            rate="-10%",
         )
 
         await communicate.save(str(output_path))
 
 
 def generate_narration(scene, output_path):
-    try:
-        asyncio.run(
-            generate_narration_async(
-                scene["text"],
-                output_path,
-            )
+    asyncio.run(
+        generate_narration_async(
+            scene["text"],
+            output_path,
         )
+    )
 
-        return output_path.exists() and output_path.stat().st_size > 0
-
-    except Exception:
-        return False
+    return output_path.exists()
 
 
 def write_caption_file(index, scene):
@@ -364,52 +405,6 @@ def write_caption_file(index, scene):
         f.write(scene["caption_text"])
 
     return path
-
-
-def build_visual_query(scene):
-    text = scene["text"]
-
-    prompt = f"""
-Convert this cinematic mystery scene into a short Pexels search query.
-
-SCENE:
-{text}
-
-RULES:
-- Make it visually specific.
-- Focus on objects, places, environments, and actions.
-- Keep it under 10 words.
-- Prioritize cinematic footage.
-- Avoid abstract concepts.
-- Output ONLY the search query.
-"""
-
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            temperature=0.7,
-            max_tokens=30,
-        )
-
-        query = response.choices[0].message.content.strip()
-
-        if len(query) < 3:
-            raise Exception("Visual query too short.")
-
-        return query
-
-    except Exception as e:
-        print("[visual-query-error]")
-        print(str(e))
-        traceback.print_exc()
-
-        return f"{text} cinematic dramatic vertical footage"
 
 
 def download_stock_video(query, output_path):
@@ -475,14 +470,17 @@ def download_stock_video(query, output_path):
         with open(output_path, "wb") as f:
             shutil.copyfileobj(download.raw, f)
 
-        return output_path.exists() and output_path.stat().st_size > 1000
+        return output_path.exists()
 
     except Exception:
         return False
 
 
 def render_scene(video_index, scene, scene_path):
-    caption_file = write_caption_file(video_index, scene)
+    caption_file = write_caption_file(
+        video_index,
+        scene,
+    )
 
     background_video = (
         OUTPUT_DIR
@@ -496,22 +494,26 @@ def render_scene(video_index, scene, scene_path):
         / f"scene_{video_index}_{scene['scene']}.mp3"
     )
 
-    has_audio = generate_narration(scene, audio_path)
+    generate_narration(scene, audio_path)
 
-    audio_duration = (
-        get_duration(audio_path) if has_audio else 0.0
-    )
+    audio_duration = get_duration(audio_path)
 
     scene_duration = max(
         float(scene["base_duration"]),
         audio_duration + 0.55,
     )
 
-    query = build_visual_query(scene)
+    query = scene["visual_query"]
 
-    print(f"[visual-query] scene {scene['scene']}: {query}")
+    print(
+        f"[visual-query] scene "
+        f"{scene['scene']}: {query}"
+    )
 
-    has_video = download_stock_video(query, background_video)
+    has_video = download_stock_video(
+        query,
+        background_video,
+    )
 
     font_size = "60" if scene.get("emphasis") else "54"
 
@@ -524,59 +526,36 @@ def render_scene(video_index, scene, scene_path):
             "-i",
             str(background_video),
         ]
-
     else:
         video_input = [
             "-f",
             "lavfi",
             "-i",
-            f"color=c=0x101820:s=1080x1920:r=30:d={scene_duration}",
+            (
+                f"color=c=0x101820:"
+                f"s=1080x1920:r=30:d={scene_duration}"
+            ),
         ]
 
     command = [
         "ffmpeg",
         "-y",
         *video_input,
-    ]
-
-    if has_audio:
-        command += ["-i", str(audio_path)]
-
-    command += [
-        "-f",
-        "lavfi",
         "-i",
-        f"anoisesrc=color=brown:amplitude=0.010:d={scene_duration}",
+        str(audio_path),
     ]
-
-    if has_audio:
-        audio_filter = (
-            "[1:a]volume=1.30[narration];"
-            "[2:a]volume=0.10[music];"
-            "[narration][music]"
-            "amix=inputs=2:duration=first:dropout_transition=0[aout];"
-        )
-
-        map_audio = ["-map", "[aout]"]
-
-    else:
-        audio_filter = "[1:a]volume=0.09[aout];"
-
-        map_audio = ["-map", "[aout]"]
 
     video_filter = (
         "[0:v]"
-        "scale=1220:2169:force_original_aspect_ratio=increase,"
+        "scale=1220:2169:"
+        "force_original_aspect_ratio=increase,"
         "crop=1080:1920:"
         "x='(iw-1080)/2 + sin(t*1.25)*26':"
         "y='(ih-1920)/2 + cos(t*1.05)*26',"
         "fps=30,"
-        "drawbox=x=0:y=0:w=1080:h=1920:"
-        "color=white@0.18:t=fill:"
-        "enable='between(mod(t,1.8),0,0.035)',"
         "eq=contrast=1.12:saturation=1.10,"
         "drawbox=x=0:y=0:w=1080:h=1920:"
-        "color=black@0.32:t=fill,"
+        "color=black@0.28:t=fill,"
         f"drawtext=textfile='{caption_file}':"
         "fontcolor=white:"
         f"fontsize={font_size}:"
@@ -589,15 +568,16 @@ def render_scene(video_index, scene, scene_path):
         "fix_bounds=1:"
         "x=(w-text_w)/2:"
         f"y={y_position}"
-        "[v];"
+        "[v]"
     )
 
     command += [
         "-filter_complex",
-        video_filter + audio_filter,
+        video_filter,
         "-map",
         "[v]",
-        *map_audio,
+        "-map",
+        "1:a",
         "-t",
         str(scene_duration),
         "-c:v",
@@ -626,20 +606,36 @@ def render_video(index, scenes):
     scene_files = []
 
     for scene in scenes:
-        scene_path = temp_dir / f"scene_{scene['scene']}.mp4"
+        scene_path = (
+            temp_dir
+            / f"scene_{scene['scene']}.mp4"
+        )
 
         render_scene(index, scene, scene_path)
 
-        if scene_path.exists() and scene_path.stat().st_size > 1000:
+        if (
+            scene_path.exists()
+            and scene_path.stat().st_size > 1000
+        ):
             scene_files.append(scene_path)
 
     concat_file = temp_dir / "concat.txt"
 
-    with open(concat_file, "w", encoding="utf-8") as f:
+    with open(
+        concat_file,
+        "w",
+        encoding="utf-8",
+    ) as f:
         for scene_file in scene_files:
-            f.write(f"file '{scene_file.resolve()}'\n")
+            f.write(
+                f"file '{scene_file.resolve()}'\n"
+            )
 
-    output_path = OUTPUT_DIR / "videos" / f"video_{index}.mp4"
+    output_path = (
+        OUTPUT_DIR
+        / "videos"
+        / f"video_{index}.mp4"
+    )
 
     command = [
         "ffmpeg",
@@ -703,7 +699,12 @@ def write_performance_template():
         / "performance_tracking_template.csv"
     )
 
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    with open(
+        path,
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as f:
         writer = csv.writer(f)
 
         writer.writerow(
@@ -738,7 +739,7 @@ def run():
     write_performance_template()
 
     selected_topics = [
-        item["topic"] for item in rankings[:5]
+        rankings[0]["topic"]
     ]
 
     for i, topic in enumerate(selected_topics):
@@ -750,15 +751,22 @@ def run():
 
         scenes = generate_script(topic)
 
-        metadata = generate_metadata(topic, trend_score)
+        metadata = generate_metadata(
+            topic,
+            trend_score,
+        )
 
         render_video(i + 1, scenes)
 
-        save_content(i + 1, scenes, metadata)
+        save_content(
+            i + 1,
+            scenes,
+            metadata,
+        )
 
         print(
             f"[autovid] generated video {i + 1}: "
-            f"{topic} | score {trend_score['total_score']}"
+            f"{topic}"
         )
 
     cleanup_temp()
