@@ -11,6 +11,7 @@ import shutil
 import asyncio
 import textwrap
 import re
+import traceback
 from pathlib import Path
 
 from openai import OpenAI
@@ -189,7 +190,7 @@ Only output the 7 scene lines.
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -223,19 +224,24 @@ Only output the 7 scene lines.
             if line:
                 cleaned.append(line)
 
+        if len(cleaned) < 5:
+            raise Exception("Story output too short.")
+
         return cleaned[:7]
 
     except Exception as e:
-        print(f"[story-engine-error] {e}")
+        print("[story-engine-error]")
+        print(str(e))
+        traceback.print_exc()
 
         return [
-            "Nobody expected the discovery to become dangerous.",
-            "Then investigators noticed something impossible.",
-            "The evidence contradicted the official explanation.",
-            "That was when the situation became much stranger.",
-            "Researchers realized the timeline made no sense.",
-            "One final detail completely changed the story.",
-            "And people still debate what really happened.",
+            f"A strange event connected to {topic} shocked investigators.",
+            "Then someone discovered evidence that contradicted the official story.",
+            "One detail made the entire situation far more dangerous.",
+            "Witnesses claimed something impossible happened next.",
+            "Researchers realized the timeline no longer made sense.",
+            "Then a final discovery completely changed the investigation.",
+            "And people still debate what actually happened.",
         ]
 
 
@@ -252,7 +258,7 @@ def generate_script(topic):
                 "scene": idx + 1,
                 "text": line,
                 "caption_text": wrap_caption(line),
-                "base_duration": 1.8 if idx == 0 else 2.1,
+                "base_duration": 1.8 if idx == 0 else 2.2,
                 "role": "story",
                 "keywords": [
                     topic,
@@ -380,7 +386,7 @@ RULES:
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "user",
@@ -393,9 +399,16 @@ RULES:
 
         query = response.choices[0].message.content.strip()
 
+        if len(query) < 3:
+            raise Exception("Visual query too short.")
+
         return query
 
-    except Exception:
+    except Exception as e:
+        print("[visual-query-error]")
+        print(str(e))
+        traceback.print_exc()
+
         return f"{text} cinematic dramatic vertical footage"
 
 
