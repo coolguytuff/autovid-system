@@ -1,6 +1,3 @@
-# Replace your ENTIRE `app.py` with this
-
-```python
 #!/usr/bin/env python3
 
 import os
@@ -270,12 +267,6 @@ def generate_script(topic):
         )
 
     return scenes
-
-
-def script_to_text(scenes):
-    return "\n".join(
-        [f"{scene['scene']}. {scene['text']}" for scene in scenes]
-    )
 
 
 def generate_metadata(topic, trend_score):
@@ -762,12 +753,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-```
-
-Then commit:
-
-```text
-Add cinematic AI story engine and ElevenLabs narration
-```
-
-Then run the workflow.
