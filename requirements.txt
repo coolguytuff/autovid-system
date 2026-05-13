@@ -1,5 +1,5 @@
 requests
-ffmpeg-python
-edge-tts
 openai
 elevenlabs
+edge-tts
+ffmpeg-python
