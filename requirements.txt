@@ -1,3 +1,5 @@
 requests
 ffmpeg-python
 edge-tts
+openai
+elevenlabs
